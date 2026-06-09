@@ -1,25 +1,22 @@
-from fastapi import FastAPI
-from fastapi import Form
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi import Request
 
-from models import *
+from models import engine, alerts
 from sqlalchemy import insert
 
 app = FastAPI()
 
-templates = Jinja2Templates(
-    directory="templates"
-)
+templates = Jinja2Templates(directory="templates")
+
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-
     return templates.TemplateResponse(
-        "index.html",
-        {"request": request}
+        request=request,
+        name="index.html"
     )
+
 
 @app.post("/add-alert")
 def add_alert(
@@ -40,12 +37,14 @@ def add_alert(
             to_station=to_station,
             journey_date=journey_date,
             class_code=class_code,
-            telegram_chat_id=telegram_chat_id
+            telegram_chat_id=telegram_chat_id,
+            notified=False
         )
     )
 
     conn.commit()
 
     return {
-        "success": True
+        "success": True,
+        "message": "Alert saved"
     }
