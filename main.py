@@ -152,7 +152,7 @@ print("Starting APScheduler...")
 scheduler.add_job(
     check_alerts,
     "interval",
-    minutes=1,
+    minutes=10,
     id="train_alert_checker"
 )
 
