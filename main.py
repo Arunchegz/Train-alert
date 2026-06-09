@@ -91,17 +91,22 @@ def check_alerts():
                 f"Status={status}"
             )
 
-            if (
-                status
-                and isinstance(status, str)
-                and status.startswith("AVAILABLE")
-            ):
+            status = str(status).strip().upper()
 
-                print("Seat available, sending Telegram alert")
+            if status not in [
+                "REGRET",
+                "NOT AVAILABLE",
+                "TRAIN DEPARTED",
+                "NOT FOUND"
+            ]:
+
+                print(
+                    "Bookable status found, sending Telegram alert"
+                )
 
                 send_alert(
                     row.telegram_chat_id,
-                    f"""🚆 Seat Available!
+                    f"""🚆 Train Booking Alert!
 
 Train: {row.train_number}
 Route: {row.from_station} → {row.to_station}
