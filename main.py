@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -31,6 +33,7 @@ def add_alert(
     class_code: str = Form(...),
     telegram_chat_id: str = Form(...)
 ):
+
     conn = engine.connect()
 
     conn.execute(
@@ -56,7 +59,10 @@ def add_alert(
 def check_alerts():
 
     print("=" * 50)
-    print("Checking alerts...")
+    print(
+        f"Checking alerts at "
+        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
     print("=" * 50)
 
     conn = engine.connect()
@@ -97,7 +103,9 @@ def check_alerts():
                 "REGRET",
                 "NOT AVAILABLE",
                 "TRAIN DEPARTED",
-                "NOT FOUND"
+                "NOT FOUND",
+                "TIMEOUT",
+                "ERROR"
             ]:
 
                 print(
@@ -153,7 +161,8 @@ scheduler.add_job(
     check_alerts,
     "interval",
     minutes=10,
-    id="train_alert_checker"
+    id="train_alert_checker",
+    replace_existing=True
 )
 
 scheduler.start()
