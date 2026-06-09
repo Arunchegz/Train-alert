@@ -1,1 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Train Alert</title>
+</head>
+<body>
 
+<h2>Create Train Alert</h2>
+
+<form action="/add-alert" method="post">
+
+    <input
+        name="train_number"
+        placeholder="Train Number"
+        required>
+
+    <br><br>
+
+    <input
+        name="from_station"
+        placeholder="From"
+        required>
+
+    <br><br>
+
+    <input
+        name="to_station"
+        placeholder="To"
+        required>
+
+    <br><br>
+
+    <input
+        name="journey_date"
+        placeholder="11-6-2026"
+        required>
+
+    <br><br>
+
+    <input
+        name="class_code"
+        placeholder="3A"
+        required>
+
+    <br><br>
+
+    <input
+        name="telegram_chat_id"
+        placeholder="Telegram Chat ID"
+        required>
+
+    <br><br>
+
+    <button type="submit">
+        Save Alert
+    </button>
+
+</form>
+
+</body>
+</html>
