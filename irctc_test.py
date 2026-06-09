@@ -3,14 +3,16 @@ from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
 
     browser = p.chromium.launch(
-        headless=True
+        headless=True,
+        args=[
+            "--disable-http2"
+        ]
     )
 
     page = browser.new_page()
 
     page.goto(
-        "https://www.irctc.co.in/nget/train-search",
-        wait_until="networkidle",
+        "https://www.google.com",
         timeout=60000
     )
 
