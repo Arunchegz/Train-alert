@@ -16,7 +16,6 @@ templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-
     return templates.TemplateResponse(
         request=request,
         name="index.html"
@@ -32,7 +31,6 @@ def add_alert(
     class_code: str = Form(...),
     telegram_chat_id: str = Form(...)
 ):
-
     conn = engine.connect()
 
     conn.execute(
@@ -57,7 +55,9 @@ def add_alert(
 
 def check_alerts():
 
+    print("=" * 50)
     print("Checking alerts...")
+    print("=" * 50)
 
     conn = engine.connect()
 
@@ -65,9 +65,14 @@ def check_alerts():
         select(alerts)
     ).fetchall()
 
+    print(f"Found {len(rows)} alerts")
+
     for row in rows:
 
+        print(f"Checking alert ID {row.id}")
+
         if row.notified:
+            print("Already notified, skipping")
             continue
 
         try:
@@ -91,6 +96,8 @@ def check_alerts():
                 and isinstance(status, str)
                 and status.startswith("AVAILABLE")
             ):
+
+                print("Seat available, sending Telegram alert")
 
                 send_alert(
                     row.telegram_chat_id,
@@ -124,10 +131,26 @@ Status: {status}
             )
 
 
+@app.get("/test-check")
+def test_check():
+
+    check_alerts()
+
+    return {
+        "success": True,
+        "message": "Manual check completed"
+    }
+
+
+print("Starting APScheduler...")
+
 scheduler.add_job(
     check_alerts,
     "interval",
-    minutes=1
+    minutes=1,
+    id="train_alert_checker"
 )
 
 scheduler.start()
+
+print("APScheduler started")
