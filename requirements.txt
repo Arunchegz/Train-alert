@@ -1,1 +1,8 @@
-
+fastapi
+uvicorn
+sqlalchemy
+apscheduler
+requests
+python-telegram-bot
+jinja2
+python-multipart
