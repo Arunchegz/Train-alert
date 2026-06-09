@@ -93,12 +93,7 @@ def check_alerts():
 
             status = str(status).strip().upper()
 
-            if status not in [
-                "REGRET",
-                "NOT AVAILABLE",
-                "TRAIN DEPARTED",
-                "NOT FOUND"
-            ]:
+            if True:
 
                 print(
                     "Bookable status found, sending Telegram alert"
