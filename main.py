@@ -16,27 +16,8 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 
-@app.on_event("startup")
-def startup_event():
-
-    print("Starting APScheduler...")
-
-    scheduler.add_job(
-        check_alerts,
-        "interval",
-        seconds=30,  # Change to minutes=10 after testing
-        id="train_alert_checker",
-        replace_existing=True
-    )
-
-    scheduler.start()
-
-    print("APScheduler started")
-
-
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-
     return templates.TemplateResponse(
         request=request,
         name="index.html"
@@ -161,6 +142,24 @@ Status: {status}
             print(
                 f"Error checking alert {row.id}: {e}"
             )
+
+
+@app.on_event("startup")
+def startup_event():
+
+    print("Starting APScheduler...")
+
+    scheduler.add_job(
+        check_alerts,
+        "interval",
+        seconds=30,
+        id="train_alert_checker",
+        replace_existing=True
+    )
+
+    scheduler.start()
+
+    print("APScheduler started")
 
 
 @app.get("/test-check")
