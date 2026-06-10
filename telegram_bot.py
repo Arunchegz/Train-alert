@@ -9,16 +9,16 @@ from telegram.ext import (
     filters,
     ContextTypes,
 )
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, delete
 from models import engine, alerts
 
-# ── Config ──────────────────────────────────────────────────────────────────
-BOT_TOKEN = "7669839735:AAFw6DOheN69uuTDuQ13BqFnf9YDJvnXBM0"
+# ── Config ───────────────────────────────────────────────────────────────────
+BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("train-alert-bot")
 
-# ── Conversation states ──────────────────────────────────────────────────────
+# ── Conversation states ───────────────────────────────────────────────────────
 (
     TRAIN_NUMBER,
     FROM_STATION,
@@ -31,7 +31,7 @@ logger = logging.getLogger("train-alert-bot")
 CLASS_OPTIONS = [["SL", "3A", "2A"], ["1A", "CC", "2S"], ["EC", "FC"]]
 
 
-# ── Helper ───────────────────────────────────────────────────────────────────
+# ── Helper ────────────────────────────────────────────────────────────────────
 def send_alert(chat_id: str, message: str) -> None:
     """Push a plain notification message to a Telegram chat."""
     try:
@@ -102,9 +102,7 @@ async def my_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # ── /addalert conversation ────────────────────────────────────────────────────
-async def add_alert_start(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def add_alert_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     await update.message.reply_text(
         "🚆 Let's set up a new alert.\n\n"
@@ -115,9 +113,7 @@ async def add_alert_start(
     return TRAIN_NUMBER
 
 
-async def recv_train_number(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def recv_train_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
     if not text.isdigit():
         await update.message.reply_text("⚠️ Please enter a valid numeric train number:")
@@ -130,9 +126,7 @@ async def recv_train_number(
     return FROM_STATION
 
 
-async def recv_from_station(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def recv_from_station(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["from_station"] = update.message.text.strip().upper()
     await update.message.reply_text(
         "Enter the *TO station code* (e.g. MMCT for Mumbai Central):",
@@ -141,9 +135,7 @@ async def recv_from_station(
     return TO_STATION
 
 
-async def recv_to_station(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def recv_to_station(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["to_station"] = update.message.text.strip().upper()
     await update.message.reply_text(
         "Enter the *journey date* in DD-MM-YYYY format (e.g. 25-07-2025):",
@@ -152,11 +144,8 @@ async def recv_to_station(
     return JOURNEY_DATE
 
 
-async def recv_journey_date(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def recv_journey_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
-    # Basic format check
     parts = text.split("-")
     if len(parts) != 3 or not all(p.isdigit() for p in parts):
         await update.message.reply_text(
@@ -174,9 +163,7 @@ async def recv_journey_date(
     return CLASS_CODE
 
 
-async def recv_class_code(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
+async def recv_class_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     code = update.message.text.strip().upper()
     valid = {c for row in CLASS_OPTIONS for c in row}
     if code not in valid:
@@ -251,7 +238,6 @@ async def delete_alert(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("You have no alerts to delete.")
         return
 
-    # No argument — list alerts and show usage
     if not context.args:
         lines = ["Which alert do you want to delete?\nUse: /deletealert <number>\n"]
         for i, row in enumerate(rows, 1):
@@ -263,7 +249,6 @@ async def delete_alert(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
         return
 
-    # Validate the number
     try:
         index = int(context.args[0])
         if not (1 <= index <= len(rows)):
@@ -277,7 +262,7 @@ async def delete_alert(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     target = rows[index - 1]
     with engine.connect() as conn:
-        conn.execute(alerts.delete().where(alerts.c.id == target.id))
+        conn.execute(delete(alerts).where(alerts.c.id == target.id))
         conn.commit()
 
     await update.message.reply_text(
@@ -312,10 +297,3 @@ def build_application() -> Application:
     app.add_handler(conv_handler)
 
     return app
-
-
-# ── Entry point (run standalone) ──────────────────────────────────────────────
-if __name__ == "__main__":
-    application = build_application()
-    logger.info("Bot polling started…")
-    application.run_polling()
