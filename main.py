@@ -63,7 +63,7 @@ def check_alerts():
 
             status = str(status).strip().upper()
 
-            if status not in [
+            if status in [
                 "REGRET",
                 "NOT AVAILABLE",
                 "TRAIN DEPARTED",
@@ -71,36 +71,36 @@ def check_alerts():
                 "TIMEOUT",
                 "ERROR"
             ]:
+                continue
 
-                logger.info(
-                    "Bookable status found, sending Telegram alert"
-                )
+            logger.info(
+                "Bookable status found, sending Telegram alert"
+            )
 
-                send_alert(
-                    row.telegram_chat_id,
-                    f"""🚆 Train Booking Alert!
+            send_alert(
+                row.telegram_chat_id,
+                f"""🚆 Train Booking Alert!
 
 Train: {row.train_number}
 Route: {row.from_station} → {row.to_station}
 
 Class: {row.class_code}
 
-Status: AVAILABLE
-Seats: 386
+Status: {status}
 """
-                )
+            )
 
-                conn.execute(
-                    update(alerts)
-                    .where(alerts.c.id == row.id)
-                    .values(notified=True)
-                )
+            conn.execute(
+                update(alerts)
+                .where(alerts.c.id == row.id)
+                .values(notified=True)
+            )
 
-                conn.commit()
+            conn.commit()
 
-                logger.info(
-                    f"Notification sent for alert {row.id}"
-                )
+            logger.info(
+                f"Notification sent for alert {row.id}"
+            )
 
         except Exception as e:
 
@@ -129,6 +129,7 @@ def startup_event():
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
+
     return templates.TemplateResponse(
         request=request,
         name="index.html"
