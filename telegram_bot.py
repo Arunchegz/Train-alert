@@ -13,7 +13,7 @@ from sqlalchemy import insert, select, delete
 from models import engine, alerts
 
 # ── Config ───────────────────────────────────────────────────────────────────
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+BOT_TOKEN = "7669839735:AAFw6DOheN69uuTDuQ13BqFnf9YDJvnXBM0"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("train-alert-bot")
