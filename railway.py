@@ -9,17 +9,6 @@ def get_status(
     travel_class,
     quota="GN"
 ):
-    """
-    Returns:
-        AVAILABLE
-        WAITLIST
-        RAC
-        REGRET
-        NOT AVAILABLE
-        TRAIN DEPARTED
-        ERROR
-    """
-
     try:
 
         url = (
@@ -31,7 +20,9 @@ def get_status(
 
         response = requests.get(
             url,
-            headers={"User-Agent": "Mozilla/5.0"},
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            },
             timeout=20
         )
 
@@ -42,14 +33,20 @@ def get_status(
         if not data.get("success"):
             return "ERROR"
 
-        seat = data["seat_availibility"][0]
+        seats = data.get("seat_availibility", [])
 
-        status = seat.get(
-            "seat_avl_text",
-            "ERROR"
-        )
+        if not seats:
+            return "ERROR"
 
-        return str(status).upper()
+        seat = seats[0]
 
-    except Exception:
+        return str(
+            seat.get(
+                "availablity_status",
+                "ERROR"
+            )
+        ).upper()
+
+    except Exception as e:
+        print("Railyatri Error:", e)
         return "ERROR"
