@@ -66,10 +66,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "👋 Welcome to *Train Alert Bot*!\n\n"
         "I'll notify you the moment a ticket becomes available on IRCTC.\n\n"
         "Commands:\n"
-        "  /addalert — Add a new train alert\n"
-        "  /myalerts — View your active alerts\n"
-        "  /cancel   — Cancel current operation\n"
-        "  /help     — Show this message",
+        "  /addalert     — Add a new train alert\n"
+        "  /myalerts     — View your active alerts\n"
+        "  /deletealert  — Delete a saved alert\n"
+        "  /cancel       — Cancel current operation\n"
+        "  /help         — Show this message",
         parse_mode="Markdown",
     )
 
@@ -237,6 +238,56 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+# ── /deletealert ──────────────────────────────────────────────────────────────
+async def delete_alert(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = str(update.effective_chat.id)
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(alerts).where(alerts.c.telegram_chat_id == chat_id)
+        ).fetchall()
+
+    if not rows:
+        await update.message.reply_text("You have no alerts to delete.")
+        return
+
+    # No argument — list alerts and show usage
+    if not context.args:
+        lines = ["Which alert do you want to delete?\nUse: /deletealert <number>\n"]
+        for i, row in enumerate(rows, 1):
+            status = "✅ Notified" if row.notified else "⏳ Watching"
+            lines.append(
+                f"{i}. Train *{row.train_number}* | {row.from_station} → {row.to_station}\n"
+                f"   Date: {row.journey_date} | Class: {row.class_code} | {status}"
+            )
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        return
+
+    # Validate the number
+    try:
+        index = int(context.args[0])
+        if not (1 <= index <= len(rows)):
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text(
+            f"⚠️ Please provide a number between 1 and {len(rows)}.\n"
+            f"Use /deletealert to see the list."
+        )
+        return
+
+    target = rows[index - 1]
+    with engine.connect() as conn:
+        conn.execute(alerts.delete().where(alerts.c.id == target.id))
+        conn.commit()
+
+    await update.message.reply_text(
+        f"🗑️ Deleted alert for train *{target.train_number}* "
+        f"({target.from_station} → {target.to_station}, "
+        f"{target.journey_date}, {target.class_code}).",
+        parse_mode="Markdown",
+    )
+
+
 # ── App builder ───────────────────────────────────────────────────────────────
 def build_application() -> Application:
     app = Application.builder().token(BOT_TOKEN).build()
@@ -257,6 +308,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("myalerts", my_alerts))
+    app.add_handler(CommandHandler("deletealert", delete_alert))
     app.add_handler(conv_handler)
 
     return app
