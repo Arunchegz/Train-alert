@@ -5,7 +5,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import insert, select, update, delete
 
 from models import engine, alerts
 from railway import get_status
@@ -63,10 +63,25 @@ def check_alerts():
 
             status = str(status).strip().upper()
 
+            # Automatically remove departed trains
+            if status == "TRAIN DEPARTED":
+
+                logger.info(
+                    f"Train departed. Removing alert {row.id}"
+                )
+
+                conn.execute(
+                    delete(alerts)
+                    .where(alerts.c.id == row.id)
+                )
+
+                conn.commit()
+
+                continue
+
             if status in [
                 "REGRET",
                 "NOT AVAILABLE",
-                "TRAIN DEPARTED",
                 "NOT FOUND",
                 "TIMEOUT",
                 "ERROR"
@@ -107,6 +122,8 @@ Status: {status}
             logger.exception(
                 f"Error checking alert {row.id}: {e}"
             )
+
+    conn.close()
 
 
 @app.on_event("startup")
@@ -161,6 +178,7 @@ def add_alert(
     )
 
     conn.commit()
+    conn.close()
 
     return {
         "success": True,
