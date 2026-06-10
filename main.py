@@ -86,11 +86,26 @@ def check_alerts():
 
 # ── Telegram bot thread ───────────────────────────────────────────────────────
 def _run_bot():
-    """Run the bot in its own event loop inside a background thread."""
+    """
+    Run the bot in a background thread without run_polling().
+    run_polling() installs signal handlers which require the main thread;
+    instead we drive the async machinery directly.
+    """
+    async def _start_polling(bot_app):
+        await bot_app.initialize()
+        await bot_app.start()
+        await bot_app.updater.start_polling(drop_pending_updates=True)
+        # Keep the loop alive until the daemon thread is killed on app exit
+        while True:
+            await asyncio.sleep(3600)
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     bot_app = build_application()
-    bot_app.run_polling()  # blocks until stopped
+    try:
+        loop.run_until_complete(_start_polling(bot_app))
+    except Exception as exc:
+        logger.exception("Telegram bot thread crashed: %s", exc)
 
 
 # ── FastAPI lifecycle ─────────────────────────────────────────────────────────
