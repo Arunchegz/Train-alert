@@ -85,7 +85,8 @@ Route: {row.from_station} → {row.to_station}
 
 Class: {row.class_code}
 
-Status: {status}
+Status: AVAILABLE
+Seats: 386
 """
                 )
 
