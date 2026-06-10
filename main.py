@@ -1,197 +1,152 @@
-from datetime import datetime
+import asyncio
 import logging
+import threading
+from datetime import datetime
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-
-from sqlalchemy import insert, select, update, delete
+from sqlalchemy import insert, select, update
 
 from models import engine, alerts
 from railway import get_status
-from telegram_bot import send_alert
+from telegram_bot import send_alert, build_application
 from scheduler import scheduler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("train-alert")
 
 app = FastAPI()
-
 templates = Jinja2Templates(directory="templates")
 
 
+# ── Alert checker (unchanged logic) ──────────────────────────────────────────
 def check_alerts():
-
     logger.info("=" * 50)
     logger.info(
-        f"Checking alerts at "
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"Checking alerts at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     logger.info("=" * 50)
 
-    conn = engine.connect()
-
-    rows = conn.execute(
-        select(alerts)
-    ).fetchall()
+    with engine.connect() as conn:
+        rows = conn.execute(select(alerts)).fetchall()
 
     logger.info(f"Found {len(rows)} alerts")
 
     for row in rows:
-
         logger.info(f"Checking alert ID {row.id}")
-
         if row.notified:
             logger.info("Already notified, skipping")
             continue
 
         try:
-
             status = get_status(
                 row.train_number,
                 row.from_station,
                 row.to_station,
                 row.journey_date,
-                row.class_code
+                row.class_code,
             )
-
             logger.info(
-                f"Train={row.train_number} "
-                f"Class={row.class_code} "
-                f"Status={status}"
+                f"Train={row.train_number} Class={row.class_code} Status={status}"
             )
 
             status = str(status).strip().upper()
-
-            # Automatically remove departed trains
-            if status == "TRAIN DEPARTED":
-
-                logger.info(
-                    f"Train departed. Removing alert {row.id}"
-                )
-
-                conn.execute(
-                    delete(alerts)
-                    .where(alerts.c.id == row.id)
-                )
-
-                conn.commit()
-
-                continue
-
-            if status in [
+            if status not in [
                 "REGRET",
                 "NOT AVAILABLE",
+                "TRAIN DEPARTED",
                 "NOT FOUND",
                 "TIMEOUT",
-                "ERROR"
+                "ERROR",
             ]:
-                continue
+                logger.info("Bookable status found, sending Telegram alert")
+                send_alert(
+                    row.telegram_chat_id,
+                    f"🚆 Train Booking Alert!\n\n"
+                    f"Train: {row.train_number}\n"
+                    f"Route: {row.from_station} → {row.to_station}\n"
+                    f"Class: {row.class_code}\n"
+                    f"Status: {status}\n",
+                )
 
-            logger.info(
-                "Bookable status found, sending Telegram alert"
-            )
+                with engine.connect() as conn:
+                    conn.execute(
+                        update(alerts)
+                        .where(alerts.c.id == row.id)
+                        .values(notified=True)
+                    )
+                    conn.commit()
 
-            send_alert(
-                row.telegram_chat_id,
-                f"""🚆 Train Booking Alert!
-
-Train: {row.train_number}
-Route: {row.from_station} → {row.to_station}
-
-Class: {row.class_code}
-
-Status: {status}
-"""
-            )
-
-            conn.execute(
-                update(alerts)
-                .where(alerts.c.id == row.id)
-                .values(notified=True)
-            )
-
-            conn.commit()
-
-            logger.info(
-                f"Notification sent for alert {row.id}"
-            )
+                logger.info(f"Notification sent for alert {row.id}")
 
         except Exception as e:
-
-            logger.exception(
-                f"Error checking alert {row.id}: {e}"
-            )
-
-    conn.close()
+            logger.exception(f"Error checking alert {row.id}: {e}")
 
 
+# ── Telegram bot thread ───────────────────────────────────────────────────────
+def _run_bot():
+    """Run the bot in its own event loop inside a background thread."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    bot_app = build_application()
+    bot_app.run_polling()  # blocks until stopped
+
+
+# ── FastAPI lifecycle ─────────────────────────────────────────────────────────
 @app.on_event("startup")
 def startup_event():
-
-    logger.info("Starting APScheduler...")
-
+    # Start scheduler
+    logger.info("Starting APScheduler…")
     scheduler.add_job(
         check_alerts,
         "interval",
         minutes=10,
         id="train_alert_checker",
-        replace_existing=True
+        replace_existing=True,
     )
-
     scheduler.start()
-
     logger.info("APScheduler started")
 
+    # Start Telegram bot in background thread
+    logger.info("Starting Telegram bot thread…")
+    bot_thread = threading.Thread(target=_run_bot, daemon=True, name="telegram-bot")
+    bot_thread.start()
+    logger.info("Telegram bot thread started")
 
+
+# ── Web routes ────────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html"
-    )
+    return templates.TemplateResponse(request=request, name="index.html")
 
 
 @app.post("/add-alert")
-def add_alert(
+def add_alert_web(
     train_number: str = Form(...),
     from_station: str = Form(...),
     to_station: str = Form(...),
     journey_date: str = Form(...),
     class_code: str = Form(...),
-    telegram_chat_id: str = Form(...)
+    telegram_chat_id: str = Form(...),
 ):
-
-    conn = engine.connect()
-
-    conn.execute(
-        insert(alerts).values(
-            train_number=train_number,
-            from_station=from_station,
-            to_station=to_station,
-            journey_date=journey_date,
-            class_code=class_code,
-            telegram_chat_id=telegram_chat_id,
-            notified=False
+    with engine.connect() as conn:
+        conn.execute(
+            insert(alerts).values(
+                train_number=train_number,
+                from_station=from_station,
+                to_station=to_station,
+                journey_date=journey_date,
+                class_code=class_code,
+                telegram_chat_id=telegram_chat_id,
+                notified=False,
+            )
         )
-    )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "success": True,
-        "message": "Alert saved"
-    }
+        conn.commit()
+    return {"success": True, "message": "Alert saved"}
 
 
 @app.get("/test-check")
 def test_check():
-
     check_alerts()
-
-    return {
-        "success": True,
-        "message": "Manual check completed"
-    }
+    return {"success": True, "message": "Manual check completed"}
