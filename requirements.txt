@@ -7,3 +7,4 @@ python-telegram-bot
 jinja2
 python-multipart
 playwright
+python-telegram-bot>=20.0
